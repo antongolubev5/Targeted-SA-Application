@@ -170,7 +170,7 @@ def prepare_dataset():
 
 def prepare_data(file_name):
     """
-    приведение собранного датасета к формату модели
+    приведение собранного датасета к формату модели BERT-QA
     """
     sentence_1 = []
     sentence_2 = []
@@ -201,7 +201,7 @@ def prepare_data(file_name):
     df_modified.to_csv(file_name[:-4] + '_mod.csv', sep='\t')
 
 
-def collect_dataset_nv():
+def create_tsa_dataset():
     """
     Тональность может быть выведена из трех составных частей:
     1.- сама сущность отмечена author_pos или author_neg — это отношение автора
@@ -220,6 +220,8 @@ def collect_dataset_nv():
     """
     directory_path = '/home/anton/Documents/brat/sentiment_dataset'
     files = list(set([file[:-4] for file in os.listdir(directory_path)]))
+
+    # 1.- сама сущность отмечена author_pos или author_neg — это отношение автора
     for file in tqdm(files):
         with open(os.path.join(directory_path, file + '.ann')) as f:
             # if 'AUTHOR_NEG' in f.read().upper():
@@ -228,7 +230,7 @@ def collect_dataset_nv():
 
 
 if __name__ == '__main__':
-    collect_dataset_nv()
+    create_tsa_dataset()
     # prepare_dataset()
     # prepare_data('df_train.csv')
     # prepare_data('df_test.csv')
