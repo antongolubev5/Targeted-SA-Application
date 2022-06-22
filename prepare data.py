@@ -1,4 +1,5 @@
 from sklearn.model_selection import train_test_split
+import spacy
 import pandas as pd
 from tqdm import tqdm
 import os
@@ -216,17 +217,80 @@ def create_tsa_dataset():
     4. Наконец, имеет смысл смотреть тональность не только к человеку и организации, но и к странам  — COUNTRY
 
     для каждого предложения проставлять соотв метку (с помощью чего было отобрано предложение) в поле source
+    в качестве нейтральной части нужно отобрать предложения, содержащие сущности без какой-либо разметки отношений
     :return:
     """
     directory_path = '/home/anton/Documents/brat/sentiment_dataset'
     files = list(set([file[:-4] for file in os.listdir(directory_path)]))
 
-    # 1.- сама сущность отмечена author_pos или author_neg — это отношение автора
+    nlp = spacy.load('ru_core_news_sm')  # sentencizer
+
+    # итерация
+    entity = []
+    entity_pos_start = []
+    entity_pos_end = []
+    label = []
+    sentence_pos_start = []
+    sentence_pos_end = []
+
+    # итоговый датасет
+    out_sentence = []
+    out_entity = []
+    out_label = []
+    out_source = []
+
+    # 1 - наличие оценки от автора [author_pos, author_neg]
     for file in tqdm(files):
-        with open(os.path.join(directory_path, file + '.ann')) as f:
-            # if 'AUTHOR_NEG' in f.read().upper():
-            if 'POSITIVE_TO' in f.read().upper():
-                print(file)
+        if os.path.isfile(os.path.join(directory_path, file + '.ann')) and os.path.isfile(
+                os.path.join(directory_path, file + '.txt')):
+            # анализ разметки для каждого файла
+            with open(os.path.join(directory_path, file + '.ann')) as f:
+                for sent in f.readlines():
+                    if 'AUTHOR_NEG' in sent or 'AUTHOR_POS' in sent:
+                        entity.append(sent.strip().split('\t')[-1])
+                        entity_pos_start.append(int(sent.strip().split('\t')[1].split()[1]))
+                        entity_pos_end.append(int(sent.strip().split('\t')[1].split()[2]))
+                        label.append(1 if sent.strip().split('\t')[1].split()[0] == 'AUTHOR_POS' else -1)
+            # анализ каждого файла
+            with open(os.path.join(directory_path, file + '.txt')) as f:
+                # sentencizing
+                f_total_text = f.read()
+                doc = nlp(f_total_text)
+                sentencized_file = [str(sent).strip() for sent in doc.sents if len(str(sent).strip()) > 0]
+
+                # поиск границ каждого предложения
+                for sent in sentencized_file:
+                    sentence_pos_start.append(f_total_text.find(sent))
+                    sentence_pos_end.append(f_total_text.find(sent) + len(sent))
+
+                # на основании разметки из .ann и sentencized-файла .txt добавляем сэмплы к генерируемому датасету
+                # проверять, сущность в entity или нет
+                for i in range(len(entity)):
+                    entity_pos = (entity_pos_end[i] + entity_pos_start[i])//2
+                    for j in range(len(sentencized_file)):
+                        if sentence_pos_start[j] < entity_pos < sentence_pos_end[j]:
+                            if entity[i].upper() in sentencized_file[j].upper():
+                                out_sentence.append(sentencized_file[j])
+                                out_entity.append(entity[i])
+                                out_label.append(label[i])
+                                out_source.append('AUTHOR_POS/AUTHOR_NEG')
+
+            # обнуление списков после каждой итерации
+            entity = []
+            entity_pos_start = []
+            entity_pos_end = []
+            label = []
+
+    out_df = pd.DataFrame(
+        {
+            'sentence': out_sentence,
+            'entity': out_entity,
+            'label': out_label,
+            'source': out_source
+        })
+
+    out_df = out_df.drop_duplicates()
+    out_df.to_csv('new_by_nv.csv', sep='\t')
 
 
 if __name__ == '__main__':
