@@ -50,3 +50,8 @@ QUANTITY        Measurements, as of weight or distance
 ORDINAL         “first”, “second”
 CARDINAL        Numerals that do not fall under another type
 ```
+
+Предлагается не экранировать следующие сущности:
+```
+AGE, AWARD, CRIME, DISTRICT, FAMILY, IDEOLOGY, PENALTY, RELIGION, PROFESSION
+```
