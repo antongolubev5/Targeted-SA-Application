@@ -17,7 +17,7 @@ def calc_metrics():
         for line in f:
             pred.append(int(line.strip().split()[0]))
 
-    df = pd.read_csv('df_test_mod.csv', sep='\t')
+    df = pd.read_csv('data/df_test_mod.csv', sep='\t')
     true = df['label'].apply(lambda x: key_vocab[x]).values
 
     print('accuracy = ' + str(round(metrics.accuracy_score(true, pred), 2)))
