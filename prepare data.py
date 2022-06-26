@@ -41,7 +41,7 @@ def prepare_dataset():
     texts_pos_abs_end = []
 
     directory_path = '/home/anton/Documents/brat/sentiment_dataset'
-    files = list(set([file[:-4] for file in os.listdir(directory_path)]))
+    files = list(sorted([file[:-4] for file in os.listdir(directory_path)]))
 
     file_total = pd.DataFrame(
         {
