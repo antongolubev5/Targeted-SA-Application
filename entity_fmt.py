@@ -100,10 +100,12 @@ class EntityFormatter(object):
 
     __supported_set = set(__supported_list)
 
-    def format(self, entity_type):
+    @staticmethod
+    def format(entity_type):
         assert(isinstance(entity_type, str))
-        return self.__types_fmt[entity_type]
+        return EntityFormatter.__types_fmt[entity_type]
 
-    def is_supported(self, entity_type):
+    @staticmethod
+    def is_supported(entity_type):
         assert(isinstance(entity_type, str))
-        return entity_type in self.__supported_set
+        return entity_type in EntityFormatter.__supported_set
