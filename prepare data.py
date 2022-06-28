@@ -51,6 +51,31 @@ def prepare_tsa_dataset(file_name):
     df_modified.to_csv(file_name[:-4] + '_modified.csv', sep='\t')
 
 
+def check_type_of_entity(entity_pos_start, entity_pos_end, entity, directory_path, file_name):
+    """
+    функция, определяющая тип сущности по файлу разметки из датасета brat
+    :param directory_path: директория с файлами .ann
+    :param file_name: название файла .ann, по которому осуществлять поиск
+    :param entity_pos_start: абсолютная стартовая позиция сущности в файле .txt
+    :param entity_pos_end: абсолютная конечная позиция сущности в файле .txt
+    :param entity: имя сущности
+    :return: сущность [str], если не нашли то 'none'
+    """
+    output = 'none'
+
+    with open(os.path.join(directory_path, file_name + '.ann')) as f:
+        for sent in f.readlines():
+            # проверяем строки файла с разметкой пока не найдем упоминание входящего параметра
+            if sent.strip().split('\t')[1].split()[1].isdigit() and sent.strip().split('\t')[1].split()[2].isdigit():
+                if int(sent.strip().split('\t')[1].split()[1]) == entity_pos_start \
+                        and int(sent.strip().split('\t')[1].split()[2]) == entity_pos_end \
+                        and sent.strip().split('\t')[-1] == entity:
+                    output = sent.strip().split('\t')[1].split()[0]
+                    break
+
+    return output
+
+
 def create_tsa_dataset():
     """
     Тональность может быть выведена из трех составных частей:
@@ -81,12 +106,14 @@ def create_tsa_dataset():
     label = []
     sentence_pos_start = []
     sentence_pos_end = []
+    entity_tag = []
 
     # итоговый датасет
     out_sentence = []
     out_entity = []
     out_label = []
     out_source = []
+    out_entity_tag = []
 
     # 1 - наличие оценки от автора [author_pos, author_neg]
     for file in tqdm(files):
@@ -96,10 +123,17 @@ def create_tsa_dataset():
             with open(os.path.join(directory_path, file + '.ann')) as f:
                 for sent in f.readlines():
                     if 'AUTHOR_NEG' in sent or 'AUTHOR_POS' in sent:
-                        entity.append(sent.strip().split('\t')[-1])
-                        entity_pos_start.append(int(sent.strip().split('\t')[1].split()[1]))
-                        entity_pos_end.append(int(sent.strip().split('\t')[1].split()[2]))
-                        label.append(1 if sent.strip().split('\t')[1].split()[0] == 'AUTHOR_POS' else -1)
+                        # отбираем сущности с тэгами из [PERSON, ORGANIZATION, COUNTRY, PROFESSION, NATIONALITY]
+                        if check_type_of_entity(int(sent.strip().split('\t')[1].split()[1]),
+                                                int(sent.strip().split('\t')[1].split()[2]),
+                                                sent.strip().split('\t')[-1],
+                                                directory_path,
+                                                file).upper() in ['PERSON', 'ORGANIZATION', 'COUNTRY', 'PROFESSION',
+                                                                  'NATIONALITY']:
+                            entity.append(sent.strip().split('\t')[-1])
+                            entity_pos_start.append(int(sent.strip().split('\t')[1].split()[1]))
+                            entity_pos_end.append(int(sent.strip().split('\t')[1].split()[2]))
+                            label.append(1 if sent.strip().split('\t')[1].split()[0] == 'AUTHOR_POS' else -1)
             # анализ каждого файла
             with open(os.path.join(directory_path, file + '.txt')) as f:
                 # sentencizing
@@ -115,14 +149,14 @@ def create_tsa_dataset():
                 # на основании разметки из .ann и sentencized-файла .txt добавляем сэмплы к генерируемому датасету
                 # проверять, сущность в entity или нет
                 for i in range(len(entity)):
-                    entity_pos = (entity_pos_end[i] + entity_pos_start[i])//2
+                    entity_pos = (entity_pos_end[i] + entity_pos_start[i]) // 2
                     for j in range(len(sentencized_file)):
-                        if sentence_pos_start[j] < entity_pos < sentence_pos_end[j]:
-                            if entity[i].upper() in sentencized_file[j].upper():
-                                out_sentence.append(sentencized_file[j])
-                                out_entity.append(entity[i])
-                                out_label.append(label[i])
-                                out_source.append('AUTHOR_POS/AUTHOR_NEG')
+                        if sentence_pos_start[j] < entity_pos < sentence_pos_end[j] and entity[i].upper() in \
+                                sentencized_file[j].upper():
+                            out_sentence.append(sentencized_file[j])
+                            out_entity.append(entity[i])
+                            out_label.append(label[i])
+                            out_source.append('AUTHOR_POS/AUTHOR_NEG')
 
             # обнуление списков после каждой итерации
             entity = []
@@ -139,7 +173,7 @@ def create_tsa_dataset():
         })
 
     out_df = out_df.drop_duplicates()
-    out_df.to_csv('tsa_dataset.csv', sep='\t')
+    out_df.to_csv('data/tsa_dataset.csv', sep='\t')
 
 
 if __name__ == '__main__':
