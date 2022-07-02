@@ -1,3 +1,5 @@
+import collections
+
 from sklearn.model_selection import train_test_split
 import spacy
 import pandas as pd
@@ -76,36 +78,59 @@ def check_type_of_entity(entity_pos_start, entity_pos_end, entity, directory_pat
     return output
 
 
+def search_entity(directory_path, file_name, t_label):
+    """
+    :param t_label: метка сущности в формате T__
+    :param directory_path: директория с файлами .ann
+    :param file_name: название файла .ann, по которому осуществлять поиск
+    функция, определяющая параметры сущности по указателю T_ в заданном файле
+    :return: строку из файла .ann с параметрами, однозначно определяющими сущность
+    """
+    output = 'none'
+
+    with open(os.path.join(directory_path, file_name + '.ann')) as f:
+        for sent in f.readlines():
+            # проверяем строки файла с разметкой пока не найдем упоминание входящего параметра
+            if sent.strip().split()[0] == t_label:
+                output = sent
+                break
+
+    return output
+
+
 def create_tsa_dataset():
     """
     Тональность может быть выведена из трех составных частей:
     1.- сама сущность отмечена author_pos или author_neg — это отношение автора
 
-    2.1. positive_to, negative_to — нужно брать второй атрибут и ставить соотв. тональность.  Это значит кто-то относится позитивно к сущности
-    2.2  opinion_relates_to  — иногда носитель мнения не упомянут, но мнение есть — тогда нам важно это отношение
+    2.1. positive_to, negative_to — нужно брать второй атрибут и ставить соотв. тональность.  Это значит кто-то
+    относится позитивно к сущности 2.2  opinion_relates_to  — иногда носитель мнения не упомянут, но мнение есть —
+    тогда нам важно это отношение
 
-    Наша сущность — это второй аргумент отношения opinion_relates_to .
-    Тональность второго аргумента определяется от тональности первого аргумента, который может быть размечен так:
-    негативная тональность — opinion_word_neg или  argument_neg, позитивная тональность — opinion_word_pos или argument_pos.
+    Наша сущность — это второй аргумент отношения opinion_relates_to . Тональность второго аргумента определяется от
+    тональности первого аргумента, который может быть размечен так: негативная тональность — opinion_word_neg или
+    argument_neg, позитивная тональность — opinion_word_pos или argument_pos.
 
     4. Наконец, имеет смысл смотреть тональность не только к человеку и организации, но и к странам  — COUNTRY
 
     для каждого предложения проставлять соотв метку (с помощью чего было отобрано предложение) в поле source
     в качестве нейтральной части нужно отобрать предложения, содержащие сущности без какой-либо разметки отношений
-    :return:
     """
     directory_path = 'brat/sentiment_dataset'
     files = list(sorted([file[:-4] for file in os.listdir(directory_path)]))
 
     nlp = spacy.load('ru_core_news_sm')  # sentencizer
 
-    # итерация
+    entities_types = ['PERSON', 'ORGANIZATION', 'COUNTRY', 'PROFESSION', 'NATIONALITY']  # список отбираемых типов
+
+    # итерация (1 файл)
     entity = []
     entity_pos_start = []
     entity_pos_end = []
     label = []
     sentence_pos_start = []
     sentence_pos_end = []
+    source = []
     entity_tag = []
 
     # итоговый датасет
@@ -115,26 +140,45 @@ def create_tsa_dataset():
     out_source = []
     out_entity_tag = []
 
-    # 1 - наличие оценки от автора [author_pos, author_neg]
     for file in tqdm(files):
         if os.path.isfile(os.path.join(directory_path, file + '.ann')) and os.path.isfile(
                 os.path.join(directory_path, file + '.txt')):
-            # анализ разметки для каждого файла
+
+            # анализ разметки .ann для каждого файла
             with open(os.path.join(directory_path, file + '.ann')) as f:
                 for sent in f.readlines():
+
+                    # 1 - наличие оценки от автора [author_pos, author_neg]
                     if 'AUTHOR_NEG' in sent or 'AUTHOR_POS' in sent:
-                        # отбираем сущности с тэгами из [PERSON, ORGANIZATION, COUNTRY, PROFESSION, NATIONALITY]
-                        if check_type_of_entity(int(sent.strip().split('\t')[1].split()[1]),
-                                                int(sent.strip().split('\t')[1].split()[2]),
-                                                sent.strip().split('\t')[-1],
-                                                directory_path,
-                                                file).upper() in ['PERSON', 'ORGANIZATION', 'COUNTRY', 'PROFESSION',
-                                                                  'NATIONALITY']:
+                        tag = check_type_of_entity(int(sent.strip().split('\t')[1].split()[1]),
+                                                   int(sent.strip().split('\t')[1].split()[2]),
+                                                   sent.strip().split('\t')[-1],
+                                                   directory_path,
+                                                   file).upper()
+                        # проверка принадлежности к списку тэгов
+                        if tag in entities_types:
                             entity.append(sent.strip().split('\t')[-1])
+                            entity_tag.append(tag)
                             entity_pos_start.append(int(sent.strip().split('\t')[1].split()[1]))
                             entity_pos_end.append(int(sent.strip().split('\t')[1].split()[2]))
                             label.append(1 if sent.strip().split('\t')[1].split()[0] == 'AUTHOR_POS' else -1)
-            # анализ каждого файла
+                            source.append('AUTHOR_POS/AUTHOR_NEG')
+
+                    # 2.1 - наличие отношения к сущности [positive_to, negative_to], берем 2-ой атрибут
+                    if 'POSITIVE_TO' in sent or 'POSITIVE_NEG' in sent:
+                        entity_info = search_entity(directory_path, file, sent.split()[3].split(':')[1])
+                        # проверка принадлежности к списку тэгов
+                        if entity_info.strip().split()[1] in entities_types:
+                            entity.append(entity_info.strip().split('\t')[-1])
+                            entity_tag.append(entity_info.strip().split()[1])
+                            entity_pos_start.append(int(entity_info.strip().split('\t')[1].split()[1]))
+                            entity_pos_end.append(int(entity_info.strip().split('\t')[1].split()[2]))
+                            label.append(1 if sent.strip().split('\t')[1].split()[0] == 'POSITIVE_TO' else -1)
+                            source.append('POSITIVE_TO/NEGATIVE_TO')
+
+                    # 2.2 - наличие opinion_relates_to, мнение есть, но автора нет
+
+            # анализ содержимого .txt для каждого файла (если нашли что-то ранее)
             with open(os.path.join(directory_path, file + '.txt')) as f:
                 # sentencizing
                 f_total_text = f.read()
@@ -147,7 +191,6 @@ def create_tsa_dataset():
                     sentence_pos_end.append(f_total_text.find(sent) + len(sent))
 
                 # на основании разметки из .ann и sentencized-файла .txt добавляем сэмплы к генерируемому датасету
-                # проверять, сущность в entity или нет
                 for i in range(len(entity)):
                     entity_pos = (entity_pos_end[i] + entity_pos_start[i]) // 2
                     for j in range(len(sentencized_file)):
@@ -156,24 +199,29 @@ def create_tsa_dataset():
                             out_sentence.append(sentencized_file[j])
                             out_entity.append(entity[i])
                             out_label.append(label[i])
-                            out_source.append('AUTHOR_POS/AUTHOR_NEG')
+                            out_entity_tag.append(entity_tag[i])
+                            out_source.append(source[i])
 
-            # обнуление списков после каждой итерации
+            # обнуление списков после обработки каждого файла
             entity = []
+            entity_tag = []
             entity_pos_start = []
             entity_pos_end = []
             label = []
+            source = []
 
     out_df = pd.DataFrame(
         {
             'sentence': out_sentence,
             'entity': out_entity,
+            'entity_tag': out_entity_tag,
             'label': out_label,
             'source': out_source
         })
 
     out_df = out_df.drop_duplicates()
-    out_df.to_csv('data/tsa_dataset.csv', sep='\t')
+    out_df.to_csv('data/tsa_dataset.csv', sep='\t', index=False)
+    print(collections.Counter(out_df['source']))
 
 
 if __name__ == '__main__':
