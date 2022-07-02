@@ -103,13 +103,13 @@ def create_tsa_dataset():
     Тональность может быть выведена из трех составных частей:
     1.- сама сущность отмечена author_pos или author_neg — это отношение автора
 
-    2.1. positive_to, negative_to — нужно брать второй атрибут и ставить соотв. тональность.  Это значит кто-то
-    относится позитивно к сущности 2.2  opinion_relates_to  — иногда носитель мнения не упомянут, но мнение есть —
-    тогда нам важно это отношение
+    2.1. positive_to, negative_to — нужно брать второй атрибут и ставить соотв. тональность.  Это значит кто-то относитс
+    я позитивно к сущности
+    2.2  opinion_relates_to  — иногда носитель мнения не упомянут, но мнение есть — тогда нам важно это отношение
 
-    Наша сущность — это второй аргумент отношения opinion_relates_to . Тональность второго аргумента определяется от
-    тональности первого аргумента, который может быть размечен так: негативная тональность — opinion_word_neg или
-    argument_neg, позитивная тональность — opinion_word_pos или argument_pos.
+    Наша сущность — это второй аргумент отношения opinion_relates_to .
+    Тональность второго аргумента определяется от тональности первого аргумента, который может быть размечен так:
+    негативная тональность — opinion_word_neg или  argument_neg, позитивная тональность — opinion_word_pos или argument_pos.
 
     4. Наконец, имеет смысл смотреть тональность не только к человеку и организации, но и к странам  — COUNTRY
 
@@ -178,37 +178,38 @@ def create_tsa_dataset():
 
                     # 2.2 - наличие opinion_relates_to, мнение есть, но автора нет
 
-            # анализ содержимого .txt для каждого файла (если нашли что-то ранее)
-            with open(os.path.join(directory_path, file + '.txt')) as f:
-                # sentencizing
-                f_total_text = f.read()
-                doc = nlp(f_total_text)
-                sentencized_file = [str(sent).strip() for sent in doc.sents if len(str(sent).strip()) > 0]
+            # анализ содержимого .txt файла, в случае, если найдены сущности из файла .ann
+            if len(source) > 0:
+                with open(os.path.join(directory_path, file + '.txt')) as f:
+                    # sentencizing
+                    f_total_text = f.read()
+                    doc = nlp(f_total_text)
+                    sentencized_file = [str(sent).strip() for sent in doc.sents if len(str(sent).strip()) > 0]
 
-                # поиск границ каждого предложения
-                for sent in sentencized_file:
-                    sentence_pos_start.append(f_total_text.find(sent))
-                    sentence_pos_end.append(f_total_text.find(sent) + len(sent))
+                    # поиск границ каждого предложения
+                    for sent in sentencized_file:
+                        sentence_pos_start.append(f_total_text.find(sent))
+                        sentence_pos_end.append(f_total_text.find(sent) + len(sent))
 
-                # на основании разметки из .ann и sentencized-файла .txt добавляем сэмплы к генерируемому датасету
-                for i in range(len(entity)):
-                    entity_pos = (entity_pos_end[i] + entity_pos_start[i]) // 2
-                    for j in range(len(sentencized_file)):
-                        if sentence_pos_start[j] < entity_pos < sentence_pos_end[j] and entity[i].upper() in \
-                                sentencized_file[j].upper():
-                            out_sentence.append(sentencized_file[j])
-                            out_entity.append(entity[i])
-                            out_label.append(label[i])
-                            out_entity_tag.append(entity_tag[i])
-                            out_source.append(source[i])
+                    # на основании разметки из .ann и sentencized-файла .txt добавляем сэмплы к генерируемому датасету
+                    for i in range(len(entity)):
+                        entity_pos = (entity_pos_end[i] + entity_pos_start[i]) // 2
+                        for j in range(len(sentencized_file)):
+                            if sentence_pos_start[j] < entity_pos < sentence_pos_end[j] and entity[i].upper() in \
+                                    sentencized_file[j].upper():
+                                out_sentence.append(sentencized_file[j])
+                                out_entity.append(entity[i])
+                                out_label.append(label[i])
+                                out_entity_tag.append(entity_tag[i])
+                                out_source.append(source[i])
 
-            # обнуление списков после обработки каждого файла
-            entity = []
-            entity_tag = []
-            entity_pos_start = []
-            entity_pos_end = []
-            label = []
-            source = []
+                # обнуление списков после обработки каждого файла
+                entity = []
+                entity_tag = []
+                entity_pos_start = []
+                entity_pos_end = []
+                label = []
+                source = []
 
     out_df = pd.DataFrame(
         {
@@ -219,7 +220,7 @@ def create_tsa_dataset():
             'source': out_source
         })
 
-    out_df = out_df.drop_duplicates()
+    out_df = out_df.drop_duplicates().sort_values(by=['source'])
     out_df.to_csv('data/tsa_dataset.csv', sep='\t', index=False)
     print(collections.Counter(out_df['source']))
 
