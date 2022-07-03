@@ -102,18 +102,16 @@ def search_entity(directory_path, file_name, t_label):
 
 def create_tsa_dataset():
     """
-    4 метода отбора сущностей, обладающих тональностью:
+    3 метода отбора сущностей, обладающих тональностью:
 
-    1.- сама сущность отмечена author_pos или author_neg — это отношение автора
+    1. author_pos, author_neg — отношение автора к сущности
 
     2. positive_to, negative_to — сущность в качестве второго атрибута, проставлять соотв. тональность
 
-    3  opinion_relates_to  — носитель мнения не упомянут, но мнение есть. Сущность — второй аргумент отношения
-    opinion_relates_to. Ее тональность определяется равной тональности первого аргумента по следующей проекции:
-        opinion_word_neg/argument_neg = negative
-        opinion_word_pos/argument_pos = positive
-
-    4. Исследовать тональность к странам (тэг COUNTRY)
+    3. opinion_relates_to  — носитель мнения не упомянут, но мнение есть. Сущность — второй аргумент отношения
+       opinion_relates_to. Ее тональность определяется равной тональности первого аргумента по следующей проекции:
+           opinion_word_neg/argument_neg = negative
+           opinion_word_pos/argument_pos = positive
 
     в качестве нейтральной части нужно отобрать предложения, содержащие сущности без какой-либо разметки отношений (?)
     """
@@ -123,7 +121,7 @@ def create_tsa_dataset():
     nlp = spacy.load('ru_core_news_sm')  # sentencizer
 
     # список типов сущностей для отбора по критериям AUTHOR_POS, AUTHOR_NEG, POSITIVE_TO, NEGATIVE_TO
-    entities_types = ['PERSON', 'ORGANIZATION', 'COUNTRY', 'PROFESSION', 'NATIONALITY']
+    entities_types = ['PERSON', 'ORGANIZATION', 'COUNTRY', 'PROFESSION', 'NATIONALITY', 'COUNTRY']
 
     # список отношения для отбора по критериям OPINION_WORD_NEG, ARGUMENT_NEG, OPINION_WORD_POS, ARGUMENT_POS
     relation_types = ['OPINION_WORD_NEG', 'ARGUMENT_NEG', 'OPINION_WORD_POS', 'ARGUMENT_POS']
@@ -242,7 +240,7 @@ def create_tsa_dataset():
             'source': out_source
         })
 
-    out_df = out_df.drop_duplicates().sort_values(by=['source'])
+    out_df = out_df.drop_duplicates().sort_values(by=['source', 'entity_tag'])
     out_df.to_csv('data/tsa_dataset.csv', sep='\t', index=False)
     print(collections.Counter(out_df['source']))
 
