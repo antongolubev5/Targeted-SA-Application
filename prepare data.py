@@ -67,13 +67,15 @@ def check_type_of_entity(entity_pos_start, entity_pos_end, entity, directory_pat
 
     with open(os.path.join(directory_path, file_name + '.ann')) as f:
         for sent in f.readlines():
-            # проверяем строки файла с разметкой пока не найдем упоминание входящего параметра
-            if sent.strip().split('\t')[1].split()[1].isdigit() and sent.strip().split('\t')[1].split()[2].isdigit():
-                if int(sent.strip().split('\t')[1].split()[1]) == entity_pos_start \
-                        and int(sent.strip().split('\t')[1].split()[2]) == entity_pos_end \
-                        and sent.strip().split('\t')[-1] == entity:
-                    output = sent.strip().split('\t')[1].split()[0]
-                    break
+            # проверяем строки файла с разметкой пока не найдем упоминание входящего
+            # т.к. в файле может быть грязные данные, проверяем наличие разделителя \t в строке
+            if '\t' in sent:
+                if sent.strip().split('\t')[1].split()[1].isdigit() and sent.strip().split('\t')[1].split()[2].isdigit():
+                    if int(sent.strip().split('\t')[1].split()[1]) == entity_pos_start \
+                            and int(sent.strip().split('\t')[1].split()[2]) == entity_pos_end \
+                            and sent.strip().split('\t')[-1] == entity:
+                        output = sent.strip().split('\t')[1].split()[0]
+                        break
 
     return output
 
@@ -100,30 +102,33 @@ def search_entity(directory_path, file_name, t_label):
 
 def create_tsa_dataset():
     """
-    Тональность может быть выведена из трех составных частей:
+    4 метода отбора сущностей, обладающих тональностью:
+
     1.- сама сущность отмечена author_pos или author_neg — это отношение автора
 
-    2.1. positive_to, negative_to — нужно брать второй атрибут и ставить соотв. тональность.  Это значит кто-то относитс
-    я позитивно к сущности
-    2.2  opinion_relates_to  — иногда носитель мнения не упомянут, но мнение есть — тогда нам важно это отношение
+    2. positive_to, negative_to — сущность в качестве второго атрибута, проставлять соотв. тональность
 
-    Наша сущность — это второй аргумент отношения opinion_relates_to .
-    Тональность второго аргумента определяется от тональности первого аргумента, который может быть размечен так:
-    негативная тональность — opinion_word_neg или  argument_neg, позитивная тональность — opinion_word_pos или argument_pos.
+    3  opinion_relates_to  — носитель мнения не упомянут, но мнение есть. Сущность — второй аргумент отношения
+    opinion_relates_to. Ее тональность определяется равной тональности первого аргумента по следующей проекции:
+        opinion_word_neg/argument_neg = negative
+        opinion_word_pos/argument_pos = positive
 
-    4. Наконец, имеет смысл смотреть тональность не только к человеку и организации, но и к странам  — COUNTRY
+    4. Исследовать тональность к странам (тэг COUNTRY)
 
-    для каждого предложения проставлять соотв метку (с помощью чего было отобрано предложение) в поле source
-    в качестве нейтральной части нужно отобрать предложения, содержащие сущности без какой-либо разметки отношений
+    в качестве нейтральной части нужно отобрать предложения, содержащие сущности без какой-либо разметки отношений (?)
     """
     directory_path = 'brat/sentiment_dataset'
     files = list(sorted([file[:-4] for file in os.listdir(directory_path)]))
 
     nlp = spacy.load('ru_core_news_sm')  # sentencizer
 
-    entities_types = ['PERSON', 'ORGANIZATION', 'COUNTRY', 'PROFESSION', 'NATIONALITY']  # список отбираемых типов
+    # список типов сущностей для отбора по критериям AUTHOR_POS, AUTHOR_NEG, POSITIVE_TO, NEGATIVE_TO
+    entities_types = ['PERSON', 'ORGANIZATION', 'COUNTRY', 'PROFESSION', 'NATIONALITY']
 
-    # итерация (1 файл)
+    # список отношения для отбора по критериям OPINION_WORD_NEG, ARGUMENT_NEG, OPINION_WORD_POS, ARGUMENT_POS
+    relation_types = ['OPINION_WORD_NEG', 'ARGUMENT_NEG', 'OPINION_WORD_POS', 'ARGUMENT_POS']
+
+    # итерация (один файл)
     entity = []
     entity_pos_start = []
     entity_pos_end = []
@@ -164,7 +169,7 @@ def create_tsa_dataset():
                             label.append(1 if sent.strip().split('\t')[1].split()[0] == 'AUTHOR_POS' else -1)
                             source.append('AUTHOR_POS/AUTHOR_NEG')
 
-                    # 2.1 - наличие отношения к сущности [positive_to, negative_to], берем 2-ой атрибут
+                    # 2 - наличие отношения к сущности [positive_to, negative_to], берем 2-ой атрибут
                     if 'POSITIVE_TO' in sent or 'POSITIVE_NEG' in sent:
                         entity_info = search_entity(directory_path, file, sent.split()[3].split(':')[1])
                         # проверка принадлежности к списку тэгов
@@ -176,7 +181,24 @@ def create_tsa_dataset():
                             label.append(1 if sent.strip().split('\t')[1].split()[0] == 'POSITIVE_TO' else -1)
                             source.append('POSITIVE_TO/NEGATIVE_TO')
 
-                    # 2.2 - наличие opinion_relates_to, мнение есть, но автора нет
+                    # 3 - наличие opinion_relates_to, мнение есть, но автора нет
+                    if 'OPINION_RELATES_TO' in sent:
+                        arg1_info = search_entity(directory_path, file, sent.split()[-2].split(':')[1])
+                        arg2_info = search_entity(directory_path, file, sent.split()[-1].split(':')[1])
+                        arg2_tag = check_type_of_entity(int(arg2_info.strip().split('\t')[1].split()[1]),
+                                                        int(arg2_info.strip().split('\t')[1].split()[2]),
+                                                        arg2_info.strip().split('\t')[-1],
+                                                        directory_path,
+                                                        file).upper()
+
+                        # тональность arg1 подходит + arg2 в списке сущностей
+                        if arg1_info.split()[1] in relation_types and arg2_tag in entities_types:
+                            entity.append(arg2_info.strip().split('\t')[-1])
+                            entity_tag.append(arg2_tag)
+                            entity_pos_start.append(int(arg2_info.strip().split('\t')[1].split()[1]))
+                            entity_pos_end.append(int(arg2_info.strip().split('\t')[1].split()[2]))
+                            label.append(1 if 'POS' in arg1_info.strip().split('\t')[1].split()[0] else -1)
+                            source.append('OPINION_RELATES_TO')
 
             # анализ содержимого .txt файла, в случае, если найдены сущности из файла .ann
             if len(source) > 0:
