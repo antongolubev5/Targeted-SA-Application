@@ -121,7 +121,7 @@ def create_tsa_dataset():
     nlp = spacy.load('ru_core_news_sm')  # sentencizer
 
     # список типов сущностей для отбора по критериям AUTHOR_POS, AUTHOR_NEG, POSITIVE_TO, NEGATIVE_TO
-    entities_types = ['PERSON', 'ORGANIZATION', 'COUNTRY', 'PROFESSION', 'NATIONALITY', 'COUNTRY']
+    entities_types = ['PERSON', 'ORGANIZATION', 'COUNTRY', 'PROFESSION', 'NATIONALITY']
 
     # список отношения для отбора по критериям OPINION_WORD_NEG, ARGUMENT_NEG, OPINION_WORD_POS, ARGUMENT_POS
     relation_types = ['OPINION_WORD_NEG', 'ARGUMENT_NEG', 'OPINION_WORD_POS', 'ARGUMENT_POS']
