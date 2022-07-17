@@ -3,56 +3,7 @@
   <component name="CsvFileAttributes">
     <option name="attributeMap">
       <map>
-        <entry key="/author_pos_neg с фильтрами.csv">
-          <value>
-            <Attribute>
-              <option name="separator" value="&#9;" />
-            </Attribute>
-          </value>
-        </entry>
-        <entry key="/author_pos_neg.csv">
-          <value>
-            <Attribute>
-              <option name="separator" value="&#9;" />
-            </Attribute>
-          </value>
-        </entry>
         <entry key="/data/tsa_dataset.csv">
-          <value>
-            <Attribute>
-              <option name="separator" value="&#9;" />
-            </Attribute>
-          </value>
-        </entry>
-        <entry key="/dataset.csv">
-          <value>
-            <Attribute>
-              <option name="separator" value="&#9;" />
-            </Attribute>
-          </value>
-        </entry>
-        <entry key="/df_test.csv">
-          <value>
-            <Attribute>
-              <option name="separator" value="&#9;" />
-            </Attribute>
-          </value>
-        </entry>
-        <entry key="/df_test_mod.csv">
-          <value>
-            <Attribute>
-              <option name="separator" value="&#9;" />
-            </Attribute>
-          </value>
-        </entry>
-        <entry key="/df_train.csv">
-          <value>
-            <Attribute>
-              <option name="separator" value="&#9;" />
-            </Attribute>
-          </value>
-        </entry>
-        <entry key="/df_train_mod.csv">
           <value>
             <Attribute>
               <option name="separator" value="&#9;" />
